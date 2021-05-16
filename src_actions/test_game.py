@@ -1,57 +1,90 @@
-from src_actions.game import GameLifecycle
-from src_actions.rock_paper_scissors import RockPaperScissorsGame
+from unittest import TestCase
 
+from .actions import player_choice
+from .game_state import (
+    ChoiceEnum,
+    Player,
+    RockPaperScissorsGame,
+    RockPaperScissorsPlayerState,
+    WinStateEnum,
+)
 
-def test_rock_paper_scissors():
-    game_manager = GameLifecycle(RockPaperScissorsGame)
-    game_manager.add_player("Jay")
-    game_manager.add_player("Kay")
-    game_manager.start_game()
-    game_manager.take_action("Jay", "choose_move", move="rock")
+class TestSerialization(TestCase):
 
-    assert game_manager.serialized("Jay")["game_status"] == "IN_PROGRESS"
-    assert game_manager.serialized("Jay")["game"]["players"] == [
-            {
-                "name": "Jay",
-                "you": True,
-                "selected_move": "rock",
-                "win": "UNKNOWN"
-            },
-            {
-                "name": "Kay",
-                "you": False,
-                "selected_move": None,
-                "win": "UNKNOWN"
-            }
+    def setUp(self):
+
+        self.players = [
+            Player(
+                name="Jay",
+                state=RockPaperScissorsPlayerState(
+                    move=ChoiceEnum.PAPER
+                )
+            ),
+            Player(
+                name="Kay",
+                state=RockPaperScissorsPlayerState(
+                    move=ChoiceEnum.NOT_CHOSEN
+                )
+            )
         ]
-    assert game_manager.serialized("Kay")["game"]["players"] == [
-            {
-                "name": "Jay",
-                "you": False,
-                "selected_move": "unknown",
-                "win": "UNKNOWN"
-            },
-            {
-                "name": "Kay",
-                "you": True,
-                "selected_move": None,
-                "win": "UNKNOWN"
-            }
-        ]
+        self.game = RockPaperScissorsGame(
+            players=self.players
+        )
 
-    game_manager.take_action("Kay", "choose_move", move="scissors")
-    assert game_manager.serialized("Jay")["game"]["players"] == [
-        {
-            "name": "Jay",
-            "you": True,
-            "selected_move": "rock",
-            "win": "WIN"
-        },
-        {
-            "name": "Kay",
-            "you": False,
-            "selected_move": "scissors",
-            "win": "LOSS"
-        }
-    ]
-    assert game_manager.serialized("Jay")["game_status"] == "COMPLETE"
+    def test_player_public_serialization(self):
+
+        player1 = self.players[0].serialized(requester="Jay")
+        assert player1["name"] == "Jay"
+        assert player1["you"] == True
+        assert player1["state"]["selected_move"] == ChoiceEnum.PAPER
+        assert player1["state"]["win_state"] == WinStateEnum.UNKNOWN
+
+    def test_player_secret_serialization(self):
+
+        player1 = self.players[0].serialized(requester="Kay")
+        assert player1["name"] == "Jay"
+        assert player1["you"] == False
+        assert player1["state"]["selected_move"] == ChoiceEnum.HIDDEN
+        assert player1["state"]["win_state"] == WinStateEnum.UNKNOWN
+
+
+class TestActions(TestCase):
+
+    def setUp(self):
+
+        self.players = [
+            Player(
+                name="Jay",
+                state=RockPaperScissorsPlayerState(
+                    move=ChoiceEnum.PAPER
+                )
+            ),
+            Player(
+                name="Kay",
+                state=RockPaperScissorsPlayerState(
+                    move=ChoiceEnum.NOT_CHOSEN
+                )
+            )
+        ]
+        self.game = RockPaperScissorsGame(
+            players=self.players
+        )
+
+    def test_player_choosing_action_changes_action(self):
+
+        player_choice(self.game, "Jay", ChoiceEnum.ROCK)
+        assert self.players[0].state.move == ChoiceEnum.ROCK
+        assert self.players[1].state.move == ChoiceEnum.NOT_CHOSEN
+
+        player_choice(self.game, "Kay", ChoiceEnum.PAPER)
+        assert self.players[0].state.move == ChoiceEnum.ROCK
+        assert self.players[1].state.move == ChoiceEnum.PAPER
+
+    def test_player_choosing_action_changes_win_state(self):
+        player_choice(self.game, "Jay", ChoiceEnum.ROCK)
+        assert self.players[0].state.win_state == WinStateEnum.UNKNOWN
+        assert self.players[1].state.win_state == WinStateEnum.UNKNOWN
+
+        player_choice(self.game, "Kay", ChoiceEnum.PAPER)
+        assert self.players[0].state.win_state == WinStateEnum.LOSS
+        assert self.players[1].state.win_state == WinStateEnum.WIN

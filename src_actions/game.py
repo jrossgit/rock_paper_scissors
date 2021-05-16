@@ -35,39 +35,3 @@ class Game:
 
     def _check_progress(self):
         raise NotImplementedError("Implement game progress check")
-
-
-class Player:
-
-    def __init__(self, name):
-        self.name = name
-        self.state = None
-
-    def set_state(self, state):
-        self.state = state
-
-
-class GameLifecycle:
-
-    def __init__(self, game_class):
-        self.state = GameStateEnum.CREATED
-        self.game = game_class()
-        self.players = []
-
-    def add_player(self, name):
-        self.players.append(Player(name))
-
-    def start_game(self):
-        self.state = GameStateEnum.IN_PROGRESS
-        self.game.start_game(self.players)
-
-    def take_action(self, player, action, **params):
-        self.game.take_action(player, action, **params)
-        if self.game._check_progress():
-            self.state = GameStateEnum.COMPLETE
-
-    def serialized(self, player_name):
-        return {
-            "game_status": str(self.state.name),
-            "game": self.game.serialized(player_name)
-        }
